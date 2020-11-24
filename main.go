@@ -40,11 +40,11 @@ func main() {
 
 	shell := ishell.New()
 
-	shell.Println("BoltDB shell")
+	shell.Println("Simple BoltDB shell")
 
 	shell.AddCmd(&ishell.Cmd{
 		Name: "ls",
-		Help: "list bucket or keys",
+		Help: "list buckets or keys",
 		Func: func(c *ishell.Context) {
 			cmdLS(c, db)
 		},
