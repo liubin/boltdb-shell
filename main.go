@@ -12,19 +12,18 @@ import (
 	bolt "go.etcd.io/bbolt"
 )
 
-type ItemType string
-
-const ItemTypeBucket = "bucket"
-const ItemTypeKey = "key"
-
 type StackItem struct {
-	ItemType ItemType
-	Name     string
-	Parents  []string
+	Name string
 }
 
 var stack []*StackItem
-var currentStackItem *StackItem
+
+func currentItem() *StackItem {
+	if len(stack) == 0 {
+		return nil
+	}
+	return stack[len(stack)-1]
+}
 
 func main() {
 	if len(os.Args) != 2 {
@@ -83,8 +82,10 @@ func cmdPWD(ic *ishell.Context) {
 	if len(stack) == 0 {
 		ic.Println("/")
 	} else {
-		last := stack[len(stack)-1]
-		p := append(last.Parents, last.Name)
+		p := make([]string, len(stack))
+		for i := range stack {
+			p[i] = stack[i].Name
+		}
 		ic.Printf("/ -> %s\n", strings.Join(p, " -> "))
 	}
 }
@@ -96,14 +97,14 @@ func cmdINT(ic *ishell.Context, db *bolt.DB) {
 	}
 
 	key := ic.Args[0]
-
+	currentStackItem := currentItem()
 	if currentStackItem == nil {
 		// FIXME
 	} else {
 		db.View(func(tx *bolt.Tx) error {
-			bk := findBucket(tx, currentStackItem.Parents, currentStackItem.Name)
+			bk := findBucket(tx)
 			if bk == nil {
-				ic.Printf("Not found bucket: %s\n", currentStackItem.Name)
+				ic.Printf("Not found key: %s\n", key)
 				return nil
 			}
 			value := bk.Get([]byte(key))
@@ -126,45 +127,35 @@ func cmdCD(ic *ishell.Context, db *bolt.DB) {
 	bucketName := ic.Args[0]
 	if bucketName == ".." {
 		if len(stack) > 1 {
-			currentStackItem = stack[len(stack)-2]
 			stack = stack[:len(stack)-1]
 		} else {
-			currentStackItem = nil
 			stack = []*StackItem{}
 		}
 		return
 	} else if bucketName == "/" {
-		currentStackItem = nil
 		stack = []*StackItem{}
 	}
 
 	db.View(func(tx *bolt.Tx) error {
 		var bk *bolt.Bucket
-		parents := []string{}
+
+		currentStackItem := currentItem()
 		if currentStackItem == nil {
 			// first
 			bk = tx.Bucket([]byte(bucketName))
 		} else {
-			pbk := findBucket(tx, currentStackItem.Parents, currentStackItem.Name)
+			pbk := findBucket(tx)
 			if pbk != nil {
 				// FIXME
 			}
 			bk = pbk.Bucket([]byte(bucketName))
 		}
 
-		if len(stack) > 0 {
-			parent := stack[len(stack)-1]
-			parents = append(parent.Parents, parent.Name)
-		}
-
 		if bk != nil {
 			// found
-			currentStackItem = &StackItem{
-				ItemType: ItemTypeBucket,
-				Name:     bucketName,
-				Parents:  parents,
-			}
-			stack = append(stack, currentStackItem)
+			stack = append(stack, &StackItem{
+				Name: bucketName,
+			})
 		} else {
 			// FIXME
 		}
@@ -175,13 +166,15 @@ func cmdCD(ic *ishell.Context, db *bolt.DB) {
 
 func cmdLS(ic *ishell.Context, db *bolt.DB) {
 	db.View(func(tx *bolt.Tx) error {
+		currentStackItem := currentItem()
 		if currentStackItem == nil {
+			// at root
 			tx.ForEach(func(name []byte, bucket *bolt.Bucket) error {
 				ic.Println(s(name))
 				return nil
 			})
 		} else {
-			bk := findBucket(tx, currentStackItem.Parents, currentStackItem.Name)
+			bk := findBucket(tx)
 			if bk == nil {
 				ic.Printf("Not found bucket: %s\n", currentStackItem.Name)
 				return nil
@@ -223,22 +216,14 @@ func s(b []byte) string {
 	return fmt.Sprintf("%+v", b)
 }
 
-func findBucket(tx *bolt.Tx, parents []string, name string) *bolt.Bucket {
+func findBucket(tx *bolt.Tx) *bolt.Bucket {
 	var bk *bolt.Bucket
-	if len(parents) == 0 {
-		bk = tx.Bucket([]byte(name))
-	} else {
-		for i, s := range parents {
-			if i == 0 {
-				bk = tx.Bucket([]byte(s))
-			} else {
-				bk = bk.Bucket([]byte(s))
-			}
+	for i, s := range stack {
+		if i == 0 {
+			bk = tx.Bucket([]byte(s.Name))
+		} else {
+			bk = bk.Bucket([]byte(s.Name))
 		}
-		if bk != nil {
-			bk = bk.Bucket([]byte(name))
-		}
-
 	}
 
 	return bk
