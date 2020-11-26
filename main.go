@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"strings"
+	"time"
 	"unicode"
 
 	"github.com/abiosoft/ishell"
@@ -74,6 +75,14 @@ func main() {
 		},
 	})
 
+	shell.AddCmd(&ishell.Cmd{
+		Name: "time",
+		Help: "show time value",
+		Func: func(c *ishell.Context) {
+			cmdTIME(c, db)
+		},
+	})
+
 	// run shell
 	shell.Run()
 }
@@ -90,9 +99,26 @@ func cmdPWD(ic *ishell.Context) {
 	}
 }
 
+func cmdTIME(ic *ishell.Context, db *bolt.DB) {
+	cmdConvret("tim", ic, db, func(value []byte) error {
+		var t time.Time
+		t.UnmarshalBinary(value)
+		ic.Printf("%+v\n", t)
+		return nil
+	})
+}
+
 func cmdINT(ic *ishell.Context, db *bolt.DB) {
+	cmdConvret("int", ic, db, func(value []byte) error {
+		id, _ := binary.Uvarint(value)
+		ic.Printf("%d\n", id)
+		return nil
+	})
+}
+
+func cmdConvret(cmd string, ic *ishell.Context, db *bolt.DB, fn func([]byte) error) {
 	if len(ic.Args) != 1 {
-		ic.Println("Must use int <key>")
+		ic.Printf("Must use %s <key>\n", cmd)
 		return
 	}
 
@@ -108,12 +134,9 @@ func cmdINT(ic *ishell.Context, db *bolt.DB) {
 				return nil
 			}
 			value := bk.Get([]byte(key))
-			id, _ := binary.Uvarint(value)
-			ic.Printf("%d\n", id)
-			return nil
+			return fn(value)
 		})
 	}
-
 }
 
 func cmdCD(ic *ishell.Context, db *bolt.DB) {

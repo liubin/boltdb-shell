@@ -16,6 +16,7 @@ $ bolt-shell meta.db
 - ls
 - pwd
 - `int <key>`: show int value of `<key>`
+- `time <key>`: show golang time value of `<key>`
 
 
 ## Demo
