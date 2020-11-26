@@ -2,6 +2,14 @@
 
 A simple BoltDB shell for exploring buckets and keys.
 
+## Install
+
+```
+$ go get github.com/liubin/bolt-shell
+
+$ bolt-shell meta.db
+```
+
 ## Support commands
 
 - `cd <bucket>` or `cd ..` or `cd /`
