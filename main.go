@@ -93,15 +93,6 @@ func main() {
 	})
 
 	shell.AddCmd(&ishell.Cmd{
-		Name:    "delete",
-		Help:    "delete a bucket",
-		Aliases: []string{"delete_bucket"},
-		Func: func(c *ishell.Context) {
-			cmdDeleteBucket(c, db)
-		},
-	})
-
-	shell.AddCmd(&ishell.Cmd{
 		Name:    "put",
 		Help:    "put key value pair under a bucket. Blank value will delete the key.",
 		Aliases: []string{"delete_key"},
@@ -110,23 +101,27 @@ func main() {
 		},
 	})
 
+	shell.AddCmd(&ishell.Cmd{
+		Name:    "rm",
+		Help:    "remove a bucket or key.",
+		Aliases: []string{"delete"},
+		Func: func(c *ishell.Context) {
+			cmdRm(c, db)
+		},
+	})
+
 	// run shell
 	shell.Run()
 }
 
 func cmdPut(ic *ishell.Context, db *bolt.DB) {
-	if len(ic.Args) == 0 {
-		ic.Println("Must use put <key> [<value>]")
+	if len(ic.Args) != 2 {
+		ic.Println("Must use put <key> <value>")
 		return
 	}
 
 	key := ic.Args[0]
-
-	// blank value will delete the key.
-	value := ""
-	if len(ic.Args) == 2 {
-		value = ic.Args[1]
-	}
+	value := ic.Args[1]
 
 	db.Update(func(tx *bolt.Tx) error {
 		var err error
@@ -136,17 +131,7 @@ func cmdPut(ic *ishell.Context, db *bolt.DB) {
 			err = fmt.Errorf("Can't put key/value under root")
 		} else {
 			// under some bucket
-			if value == "" {
-				oldValue := bk.Get([]byte(key))
-				// check if the key exist.
-				if oldValue != nil {
-					err = bk.Delete([]byte(key))
-				} else {
-					err = fmt.Errorf("Key %s not exist", key)
-				}
-			} else {
-				err = bk.Put([]byte(key), []byte(value))
-			}
+			err = bk.Put([]byte(key), []byte(value))
 		}
 
 		if err != nil {
@@ -157,26 +142,43 @@ func cmdPut(ic *ishell.Context, db *bolt.DB) {
 	})
 }
 
-func cmdDeleteBucket(ic *ishell.Context, db *bolt.DB) {
+// deleteKey delete a key, return error if the key not exist
+func deleteKey(bk *bolt.Bucket, key string) error {
+	oldValue := bk.Get([]byte(key))
+	// check if the key exist.
+	if oldValue != nil {
+		return bk.Delete([]byte(key))
+	}
+	return fmt.Errorf("Key %s not exist", key)
+}
+
+func cmdRm(ic *ishell.Context, db *bolt.DB) {
 	if len(ic.Args) != 1 {
-		ic.Println("Must use delete <bucket_name>")
+		ic.Println("Must use rm <bucket_name>|<key>")
 		return
 	}
-	bucketName := ic.Args[0]
+	bucketOrKey := ic.Args[0]
 
 	db.Update(func(tx *bolt.Tx) error {
 		var err error
 		bk := getCurrentBucket(tx)
 		if bk == nil {
 			// in root
-			err = tx.DeleteBucket([]byte(bucketName))
+			// get bucket
+			oldBk := tx.Bucket([]byte(bucketOrKey))
+			if oldBk != nil {
+				// try to delete a bucket
+				err = tx.DeleteBucket([]byte(bucketOrKey))
+			} else {
+				// try to delete a key
+			}
 		} else {
 			// under some bucket
-			err = bk.DeleteBucket([]byte(bucketName))
+			err = bk.DeleteBucket([]byte(bucketOrKey))
 		}
 
 		if err != nil {
-			ic.Printf("Delete bucket %s failed: %s\n", bucketName, err.Error())
+			ic.Printf("Delete bucket %s failed: %s\n", bucketOrKey, err.Error())
 		}
 
 		return err

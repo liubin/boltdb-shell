@@ -12,10 +12,9 @@ $ boltdb-shell meta.db
 
 ## Support commands
 
-- `create <bucket>`: create bucket
-- `delete <bucket>`: delete bucket
+- `create <bucket>`: create bucket(or `mkdir`/`create_bucket`)
+- `rm <bucket>|<key>`: delete bucket or key.
 - `put <key> <value>`: put key value
-- `delete_key <key>`: delete key.(alias of `put key`, that is putting key with empty value)
 - `cd <bucket>` or `cd ..` or `cd /`
 - `ls`: list buckets or keys under current path
 - `pwd`: show current path(under which bucket)
