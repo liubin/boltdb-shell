@@ -230,7 +230,7 @@ func cmdPWD(ic *ishell.Context) {
 }
 
 func cmdTIME(ic *ishell.Context, db *bolt.DB) {
-	cmdConvret("time", ic, db, func(value []byte) error {
+	cmdConvertValue("time", ic, db, func(value []byte) error {
 		var t time.Time
 		t.UnmarshalBinary(value)
 		ic.Printf("%+v\n", t)
@@ -239,14 +239,14 @@ func cmdTIME(ic *ishell.Context, db *bolt.DB) {
 }
 
 func cmdINT(ic *ishell.Context, db *bolt.DB) {
-	cmdConvret("int", ic, db, func(value []byte) error {
+	cmdConvertValue("int", ic, db, func(value []byte) error {
 		id, _ := binary.Uvarint(value)
 		ic.Printf("%d\n", id)
 		return nil
 	})
 }
 
-func cmdConvret(cmd string, ic *ishell.Context, db *bolt.DB, fn func([]byte) error) {
+func cmdConvertValue(cmd string, ic *ishell.Context, db *bolt.DB, fn func([]byte) error) {
 	if len(ic.Args) != 1 {
 		ic.Printf("Must use %s <key>\n", cmd)
 		return
