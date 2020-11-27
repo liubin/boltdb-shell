@@ -1,4 +1,4 @@
-module github.com/liubin/bolt-shell
+module github.com/liubin/boltdb-shell
 
 go 1.14
 

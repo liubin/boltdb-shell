@@ -1,13 +1,13 @@
-# bolt-shell
+# boltdb-shell
 
 A simple BoltDB shell for exploring buckets and keys.
 
 ## Install
 
 ```
-$ go get github.com/liubin/bolt-shell
+$ go get github.com/liubin/boltdb-shell
 
-$ bolt-shell meta.db
+$ boltdb-shell meta.db
 ```
 
 ## Support commands
