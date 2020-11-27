@@ -86,7 +86,7 @@ func main() {
 	shell.AddCmd(&ishell.Cmd{
 		Name:    "create",
 		Help:    "create new bucket",
-		Aliases: []string{"create_bucket"},
+		Aliases: []string{"create_bucket", "mkdir"},
 		Func: func(c *ishell.Context) {
 			cmdCreateBucket(c, db)
 		},
@@ -320,10 +320,12 @@ func cmdCD(ic *ishell.Context, db *bolt.DB) {
 func cmdLS(ic *ishell.Context, db *bolt.DB) {
 	db.View(func(tx *bolt.Tx) error {
 		currentStackItem := currentItem()
+		var totalBuckets, totalKeys int
 		if currentStackItem == nil {
 			// at root
 			tx.ForEach(func(name []byte, bucket *bolt.Bucket) error {
-				ic.Println(s(name))
+				ic.Printf("[Bucket]    %s\n", s(name))
+				totalBuckets++
 				return nil
 			})
 		} else {
@@ -339,14 +341,19 @@ func cmdLS(ic *ishell.Context, db *bolt.DB) {
 					tt := bk.Bucket(k)
 					if tt != nil {
 						// bucket
-						ic.Printf("[Bucket] %s\n", s(k))
+						ic.Printf("[Bucket]    %s\n", s(k))
+						totalBuckets++
 					} else {
 						// key
-						ic.Printf("[Key] %s=%s\n", s(k), s(v))
+						ic.Printf("[Key]       %s=%s\n", s(k), s(v))
+						totalKeys++
 					}
 				}
 			}
 		}
+
+		// print summary info
+		ic.Printf("\n  Total %d buckets and %d keys\n", totalBuckets, totalKeys)
 
 		return nil
 	})
