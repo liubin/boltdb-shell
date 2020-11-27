@@ -83,8 +83,141 @@ func main() {
 		},
 	})
 
+	shell.AddCmd(&ishell.Cmd{
+		Name: "create",
+		Help: "create new bucket",
+		Func: func(c *ishell.Context) {
+			cmdCreateBucket(c, db)
+		},
+	})
+
+	shell.AddCmd(&ishell.Cmd{
+		Name: "delete",
+		Help: "delete a bucket",
+		Func: func(c *ishell.Context) {
+			cmdDeleteBucket(c, db)
+		},
+	})
+
+	shell.AddCmd(&ishell.Cmd{
+		Name: "delete_key",
+		Help: "delete a key",
+		Func: func(c *ishell.Context) {
+			cmdPut(c, db)
+		},
+	})
+
+	shell.AddCmd(&ishell.Cmd{
+		Name: "put",
+		Help: "put key value pair under a bucket. Blank value will delete the key.",
+		Func: func(c *ishell.Context) {
+			cmdPut(c, db)
+		},
+	})
+
 	// run shell
 	shell.Run()
+}
+
+func cmdPut(ic *ishell.Context, db *bolt.DB) {
+	if len(ic.Args) == 0 {
+		ic.Println("Must use put <key> [<value>]")
+		return
+	}
+
+	key := ic.Args[0]
+
+	// blank value will delete the key.
+	value := ""
+	if len(ic.Args) == 2 {
+		value = ic.Args[1]
+	}
+
+	db.Update(func(tx *bolt.Tx) error {
+		var err error
+		bk := getCurrentBucket(tx)
+		if bk == nil {
+			// in root
+			err = fmt.Errorf("Can't put key/value under root")
+		} else {
+			// under some bucket
+			if value == "" {
+				oldValue := bk.Get([]byte(key))
+				// check if the key exist.
+				if oldValue != nil {
+					err = bk.Delete([]byte(key))
+				} else {
+					err = fmt.Errorf("Key %s not exist", key)
+				}
+			} else {
+				err = bk.Put([]byte(key), []byte(value))
+			}
+		}
+
+		if err != nil {
+			ic.Printf("Put key/value failed: %s\n", err.Error())
+		}
+
+		return err
+	})
+}
+
+func cmdDeleteBucket(ic *ishell.Context, db *bolt.DB) {
+	if len(ic.Args) != 1 {
+		ic.Println("Must use delete <bucket_name>")
+		return
+	}
+	bucketName := ic.Args[0]
+
+	db.Update(func(tx *bolt.Tx) error {
+		var err error
+		bk := getCurrentBucket(tx)
+		if bk == nil {
+			// in root
+			err = tx.DeleteBucket([]byte(bucketName))
+		} else {
+			// under some bucket
+			err = bk.DeleteBucket([]byte(bucketName))
+		}
+
+		if err != nil {
+			ic.Printf("Delete bucket %s failed: %s\n", bucketName, err.Error())
+		}
+
+		return err
+	})
+}
+
+func cmdCreateBucket(ic *ishell.Context, db *bolt.DB) {
+	if len(ic.Args) != 1 {
+		ic.Println("Must use create <bucket_name>")
+		return
+	}
+	bucketName := ic.Args[0]
+
+	db.Update(func(tx *bolt.Tx) error {
+		var err error
+		bk := getCurrentBucket(tx)
+		if bk == nil {
+			// in root
+			_, err = tx.CreateBucket([]byte(bucketName))
+		} else {
+			// under some bucket
+			newBk := bk.Bucket([]byte(bucketName))
+			if newBk != nil {
+				err = fmt.Errorf("Bucket %s already exist", bucketName)
+			} else {
+				// create if not exist
+				_, err = bk.CreateBucket([]byte(bucketName))
+			}
+		}
+
+		if err != nil {
+			ic.Printf("Create bucket %s failed: %s\n", bucketName, err.Error())
+		}
+
+		return err
+	})
 }
 
 func cmdPWD(ic *ishell.Context) {
@@ -100,7 +233,7 @@ func cmdPWD(ic *ishell.Context) {
 }
 
 func cmdTIME(ic *ishell.Context, db *bolt.DB) {
-	cmdConvret("tim", ic, db, func(value []byte) error {
+	cmdConvret("time", ic, db, func(value []byte) error {
 		var t time.Time
 		t.UnmarshalBinary(value)
 		ic.Printf("%+v\n", t)
@@ -128,7 +261,7 @@ func cmdConvret(cmd string, ic *ishell.Context, db *bolt.DB, fn func([]byte) err
 		// FIXME
 	} else {
 		db.View(func(tx *bolt.Tx) error {
-			bk := findBucket(tx)
+			bk := getCurrentBucket(tx)
 			if bk == nil {
 				ic.Printf("Not found key: %s\n", key)
 				return nil
@@ -167,7 +300,7 @@ func cmdCD(ic *ishell.Context, db *bolt.DB) {
 			// first
 			bk = tx.Bucket([]byte(bucketName))
 		} else {
-			pbk := findBucket(tx)
+			pbk := getCurrentBucket(tx)
 			if pbk != nil {
 				// FIXME
 			}
@@ -197,7 +330,7 @@ func cmdLS(ic *ishell.Context, db *bolt.DB) {
 				return nil
 			})
 		} else {
-			bk := findBucket(tx)
+			bk := getCurrentBucket(tx)
 			if bk == nil {
 				ic.Printf("Not found bucket: %s\n", currentStackItem.Name)
 				return nil
@@ -239,7 +372,8 @@ func s(b []byte) string {
 	return fmt.Sprintf("%+v", b)
 }
 
-func findBucket(tx *bolt.Tx) *bolt.Bucket {
+// getCurrentBucket get current bucket, it will return nil if in the root
+func getCurrentBucket(tx *bolt.Tx) *bolt.Bucket {
 	var bk *bolt.Bucket
 	for i, s := range stack {
 		if i == 0 {
