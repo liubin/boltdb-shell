@@ -84,32 +84,27 @@ func main() {
 	})
 
 	shell.AddCmd(&ishell.Cmd{
-		Name: "create",
-		Help: "create new bucket",
+		Name:    "create",
+		Help:    "create new bucket",
+		Aliases: []string{"create_bucket"},
 		Func: func(c *ishell.Context) {
 			cmdCreateBucket(c, db)
 		},
 	})
 
 	shell.AddCmd(&ishell.Cmd{
-		Name: "delete",
-		Help: "delete a bucket",
+		Name:    "delete",
+		Help:    "delete a bucket",
+		Aliases: []string{"delete_bucket"},
 		Func: func(c *ishell.Context) {
 			cmdDeleteBucket(c, db)
 		},
 	})
 
 	shell.AddCmd(&ishell.Cmd{
-		Name: "delete_key",
-		Help: "delete a key",
-		Func: func(c *ishell.Context) {
-			cmdPut(c, db)
-		},
-	})
-
-	shell.AddCmd(&ishell.Cmd{
-		Name: "put",
-		Help: "put key value pair under a bucket. Blank value will delete the key.",
+		Name:    "put",
+		Help:    "put key value pair under a bucket. Blank value will delete the key.",
+		Aliases: []string{"delete_key"},
 		Func: func(c *ishell.Context) {
 			cmdPut(c, db)
 		},
@@ -290,6 +285,7 @@ func cmdCD(ic *ishell.Context, db *bolt.DB) {
 		return
 	} else if bucketName == "/" {
 		stack = []*StackItem{}
+		return
 	}
 
 	db.View(func(tx *bolt.Tx) error {
@@ -314,6 +310,7 @@ func cmdCD(ic *ishell.Context, db *bolt.DB) {
 			})
 		} else {
 			// FIXME
+			ic.Printf("Bucket not found: %s\n", bucketName)
 		}
 
 		return nil
